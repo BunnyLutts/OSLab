@@ -102,3 +102,15 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+// Set the trace mask for the current process.
+uint64 sys_trace(void) {
+    int mask;
+    argint(0, &mask);
+    struct proc *p = myproc();
+    if (p) {
+        p->trace_mask = (uint32)mask;
+        return 0;
+    } else return -1;
+}
