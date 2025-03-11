@@ -3,8 +3,12 @@
 #include "user/user.h"
 
 int main(int argc, char *argv[]) {
-    int fildes[2];
-    if (pipe(fildes) < 0) {
+    int p2c[2], c2p[2];
+    if (pipe(p2c) < 0) {
+        printf("Error creating pipe\n");
+        exit(-1);
+    }
+    if (pipe(c2p) < 0) {
         printf("Error creating pipe\n");
         exit(-1);
     }
@@ -15,14 +19,14 @@ int main(int argc, char *argv[]) {
         exit(-1);
     } else if (npid == 0) { // Child process
         char byte;
-        read(fildes[0], &byte, 1);
+        read(p2c[0], &byte, 1);
         int pid = getpid();
         printf("%d: received ping\n", pid);
-        write(fildes[1], "", 1);
+        write(c2p[1], "", 1);
     } else { // Parent process
         char byte;
-        write(fildes[1], "", 1);
-        read(fildes[0], &byte, 1);
+        write(p2c[1], "", 1);
+        read(c2p[0], &byte, 1);
         int pid = getpid();
         printf("%d: received pong\n", pid);
     }
