@@ -80,3 +80,17 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+// Calculate the total amount of free memory in bytes (by pages, running through freelist).
+uint64 calc_freemem(void) {
+    struct run *r;
+    uint64 freemem = 0;
+
+    acquire(&kmem.lock);
+    for (r = kmem.freelist; r; r = r->next) {
+        freemem += PGSIZE;
+    }
+    release(&kmem.lock);
+
+    return freemem;
+}
