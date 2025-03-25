@@ -134,3 +134,20 @@ uint64 sys_sysinfo(void) {
     }
     return 0;
 }
+
+// Set alarm for the current process.
+uint64 sys_sigalarm(void) {
+    struct proc *p = myproc();
+    int ticks;
+    uint64 handler_addr;
+    argint(0, &ticks);
+    argaddr(1, &handler_addr);
+    p->alarm_ticks = ticks;
+    p->alarm_handler = handler_addr;
+    p->cur_ticks = 0;
+}
+
+// idk what is this for
+uint64 sys_sigreturn(void) {
+    return 0;
+}

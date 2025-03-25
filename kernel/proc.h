@@ -107,4 +107,9 @@ struct proc {
 
   // trace mask
   uint32 trace_mask;
+
+  // Alarm parameters
+  int alarm_ticks;
+  int cur_ticks;
+  uint64 alarm_handler;
 };
