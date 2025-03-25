@@ -78,7 +78,14 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if (which_dev == 2) {
-    yield();
+    p->cur_ticks++;
+    if (!p->handler_id && p->alarm_ticks > 0 && p->cur_ticks >= p->alarm_ticks) {
+            p->handler_id = 1; // Mark the handler as active.
+            p->cur_ticks = 0;
+            *p->trapfram2 = *p->trapframe; // Save the old trapframe.
+            p->trapframe->epc = p->alarm_handler; // Change the returning address to the handler.
+    } else yield();
+    // yield();
   }
 
   usertrapret();

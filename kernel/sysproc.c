@@ -145,9 +145,14 @@ uint64 sys_sigalarm(void) {
     p->alarm_ticks = ticks;
     p->alarm_handler = handler_addr;
     p->cur_ticks = 0;
+    return 0;
 }
 
-// idk what is this for
+// Return from a signal handler.
 uint64 sys_sigreturn(void) {
-    return 0;
+    struct proc *p = myproc();
+    *p->trapframe = *p->trapfram2; // Restore the old trapframe.
+    p->handler_id = 0; // Mark the handler as inactive.
+    return p->trapframe->a0; // Restore the return value.
+    // return 0;
 }
