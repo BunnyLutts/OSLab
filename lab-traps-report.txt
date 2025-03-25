@@ -1,0 +1,15 @@
+Backtrace:
+在实现上没有遇见难点，了解了stack frame的组成与作用。
+
+关于Bonus部分没有很好的想法。如果只需要针对系统函数输出函数名称可以在编译期将函数地址与名称联系起来编码成为表格。
+或者可以将addr2line程序移植至xv6系统中。
+
+Alarm:
+
+一开始没有想清楚usertrap()函数的作用，以为在由timer触发时需要遍历进程列表处理所有进程。实际上只处理当前进程即可。
+
+修改trapframe中记载的Program Counter即可实现更改返回跳转时的地址。为了能从handler返回主程序，我在调用前复制了一份
+trapframe,并在sigreturn中恢复保存的trapframe。在proc结构体中记录当前是否触发handler，并在sigreturn中重置该标记，
+以保证只会有一个handler在运行。
+
+alarmtest顺利通过，但是usertests一直报错。询问助教后发现是环境问题，在更换环境后得到解决。
