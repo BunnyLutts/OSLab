@@ -1,21 +1,8 @@
-FROM archlinux:base-devel
+FROM ubuntu:20.04
 
-RUN pacman -Syy --noconfirm && pacman -S pacman-contrib --noconfirm
-RUN cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bk
-RUN rankmirrors -n 6 /etc/pacman.d/mirrorlist.bk > /etc/pacman.d/mirrorlist
-RUN pacman -Syyu --noconfirm
-RUN pacman -S git qemu-base qemu-emulators-full sudo \
-    risc-v riscv64-linux-gnu-gdb riscv64-elf-binutils riscv64-elf-gcc riscv64-elf-gdb riscv64-elf-newlib \
-    --noconfirm
-
-# RUN useradd --no-create-home build && usermod -L build
-# RUN echo "build ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-# RUN echo "root ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-# RUN git clone https://aur.archlinux.org/riscv-gnu-toolchain-bin.git && chmod a+rwx /riscv-gnu-toolchain-bin
-# WORKDIR /riscv-gnu-toolchain-bin
-# USER build
-# RUN makepkg -si --noconfirm
-
-# USER root
-WORKDIR /
+RUN sed -i 's@/archive.ubuntu.com/@/mirrors.aliyun.com/@g' /etc/apt/sources.list
+RUN sed -i 's@/security.ubuntu.com/@/mirrors.aliyun.com/@g' /etc/apt/sources.list
+RUN apt-get update
+RUN ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
+    apt-get update && apt-get install -y \
+    git make build-essential gdb-multiarch qemu-system-misc=1:4.2-3ubuntu6 gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu 
