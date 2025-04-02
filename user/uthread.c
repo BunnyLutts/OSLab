@@ -10,8 +10,10 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
+#define PUSHUINT64(thread, val) (thread->sp = thread->sp - sizeof(uint64), *(uint64 *)(thread->sp) = (uint64)(val))
 
 struct thread {
+  char       *sp;           /* the thread's saved stack pointer */
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
 };
@@ -60,6 +62,7 @@ thread_schedule(void)
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
+    thread_switch((uint64)t, (uint64)next_thread);
   } else
     next_thread = 0;
 }
@@ -74,6 +77,9 @@ thread_create(void (*func)())
   }
   t->state = RUNNABLE;
   // YOUR CODE HERE
+  // Create a stack with func as ra
+  t->sp = t->stack + STACK_SIZE;
+  PUSHUINT64(t, (uint64)func); /* ra */
 }
 
 void 
