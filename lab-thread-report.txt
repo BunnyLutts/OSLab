@@ -1,0 +1,30 @@
+uthread:
+
+我认为uthread的主要难点在于从汇编视角理解函数调用的过程。
+
+在对上学期的系统笔记进行大记忆恢复术后，我回想起函数调用中，
+Caller Register由调用者负责恢复， Callee Register由受调函数负责恢复。
+一般这些寄存器由对应的函数以自定的顺序保存在栈中。
+
+在ret执行时，程序会跳转至ra指向的地址。
+sp指向当前的栈顶。
+
+那么thread_switch的实现逻辑就呼之欲出了：将当前Callee Register和ra保存入栈，
+保存sp指针。再把目标线程的对应寄存器和sp指针取出即可。
+
+同理，创建线程实质上是创建一个ra对应func的栈。
+
+这里不需要保存Caller Register的原因是其在thread_switch调用前由调用者保存，从thread_switch返回后由调用者恢复。
+需要保存所有Callee Register,即使它们在thread_switch中没有修改的原因是切换线程天然要求修改Callee Register.
+
+pthread:
+
+按照提示对哈希表每个桶分配一把锁即可
+
+barrier:
+
+我的思路是首先取得锁，然后记录当前round，更新nthread和round。若均到达则广播信号，否则等待信号。
+
+从阻塞中恢复后检查round是否与记录一致，若一致则重复阻塞，否则返回。
+
+对于任意线程，在一轮中最多到达barrier一次。因此不同线程间的轮数最多差1，这保证了程序的正确性。

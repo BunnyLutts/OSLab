@@ -31,15 +31,14 @@ barrier() {
     //
     pthread_mutex_lock(&bstate.barrier_mutex);
     int round = bstate.round;
-    for (;;) {
-        bstate.nthread++;
-        if (bstate.nthread == nthread) {
-            bstate.round++;
-            bstate.nthread = 0;
-            pthread_mutex_unlock(&bstate.barrier_mutex);
-            pthread_cond_broadcast(&bstate.barrier_cond);
-            return;
-        } else {
+    bstate.nthread++;
+    if (bstate.nthread == nthread) {
+        bstate.round++;
+        bstate.nthread = 0;
+        pthread_mutex_unlock(&bstate.barrier_mutex);
+        pthread_cond_broadcast(&bstate.barrier_cond);
+    } else {
+        for (;;) {
             pthread_cond_wait(&bstate.barrier_cond, &bstate.barrier_mutex);
             if (bstate.round != round) {
                 pthread_mutex_unlock(&bstate.barrier_mutex);
