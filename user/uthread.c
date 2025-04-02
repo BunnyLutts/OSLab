@@ -77,8 +77,10 @@ thread_create(void (*func)())
   }
   t->state = RUNNABLE;
   // YOUR CODE HERE
-  // Create a stack with func as ra
-  t->sp = t->stack + STACK_SIZE;
+  // Create a stack with func as ra, and push all callee into stack
+  t->sp = t->stack + STACK_SIZE; /* Empty stack*/
+
+  t->sp = t->sp - sizeof(uint64)*12; /*s0 - s11*/
   PUSHUINT64(t, (uint64)func); /* ra */
 }
 
