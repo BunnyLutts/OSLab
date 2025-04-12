@@ -1,0 +1,5 @@
+When keys are generated as follows:
+Thread 1 insert key = 1 to table[1]
+Before thread 1 execute `*p = e`, Thread 2 insert key = 5 to table[1] and finished the call.
+
+At the end of this sequence, table[1] is 1->previous keys, and the key=5 is missed.
