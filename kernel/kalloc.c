@@ -85,7 +85,7 @@ kalloc(void) {
     release(&kmem[cpu_id].lock);
 
     // Steal from other cpus
-    for (int i = 0; !r && i < NCPU; i++) {
+    for (int i = (cpu_id+1)%NCPU; !r && i != cpu_id; i=(i+1)%NCPU) {
         acquire(&kmem[i].lock);
         r = kmem[i].freelist;
         if (r) {
