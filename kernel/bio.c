@@ -84,27 +84,75 @@ static int hash(uint dev, uint blockno) {
     return ((dev * magic_number_1) + blockno)%BIO_HASHMODS;
 }
 
+// Acquire two locks
+static void acquire_two_locks(int a, int b) {
+    if (a < b) {
+        acquire(&bcache.lock[a]);
+        acquire(&bcache.lock[b]);
+    } else if (a > b) {
+        acquire(&bcache.lock[b]);
+        acquire(&bcache.lock[a]);
+    } else {
+        acquire(&bcache.lock[b]);
+    }
+}
+
+// Release two locks
+static void release_two_locks(int a, int b) {
+    if (a < b) {
+        release(&bcache.lock[a]);
+        release(&bcache.lock[b]);
+    } else if (a > b) {
+        release(&bcache.lock[b]);
+        release(&bcache.lock[a]);
+    } else {
+        release(&bcache.lock[b]);
+    }
+}
+
+// Try to do bget at pos, 
+// when block is not cached in pos, allocate from a free block in target
 static struct buf *bget_try(uint dev, uint blockno, int pos, int target) {
-    struct buf *b = 0;
+    struct buf *b;
 
-    if (target < pos) {
-        acquire(&bcache.lock[target]);
-        acquire(&bcache.lock[pos]);
-    } else {
-        acquire(&bcache.lock[pos]);
-        acquire(&bcache.lock[target]);
+    acquire_two_locks(pos, target);
+
+    // Check pos in case that (dev, blockno) has been added.
+    for (b = bcache.hasht[pos].next; b != &bcache.hasht[pos]; b = b->next) {
+        if (b->dev == dev && b->blockno == blockno) {
+            b->refcnt++;
+            release_two_locks(pos, target);
+            acquiresleep(&b->lock);
+            return b;
+        }
     }
 
+    // Check target
+    for (b = bcache.hasht[target].next; b != &bcache.hasht[target]; b = b->next) {
+        if (b->refcnt == 0) {
+            b->dev = dev;
+            b->blockno = blockno;
+            b->valid = 0;
+            b->refcnt = 1;
 
-    if (target < pos) {
-        release(&bcache.lock[target]);
-        release(&bcache.lock[pos]);
-    } else {
-        release(&bcache.lock[pos]);
-        release(&bcache.lock[target]);
+            // Remove from bucket target
+            b->next->prev = b->prev;
+            b->prev->next = b->next;
+
+            // Insert into bucket pos
+            b->prev = &bcache.hasht[pos];
+            b->next = bcache.hasht[pos].next;
+            b->prev->next = b->next->prev = b;
+
+            release_two_locks(pos, target);
+            acquiresleep(&b->lock);
+            return b;
+        }
     }
 
-    return b;
+    release_two_locks(pos, target);
+
+    return 0;
 }
 
 // Look through buffer cache for block on device dev.
@@ -115,109 +163,14 @@ bget(uint dev, uint blockno) {
     struct buf *b;
 
     int pos = hash(dev, blockno);
-    acquire(&bcache.lock[pos]);
-    // Cached?
-    for (b = bcache.hasht[pos].next; b != &bcache.hasht[pos]; b = b->next) {
-        if (b->dev == dev && b->blockno == blockno) {
-            b->refcnt++;
-            release(&bcache.lock[pos]);
-            acquiresleep(&b->lock);
-            return b;
-        }
+
+    b = 0;
+    // Keep trying get a cached block or a free block
+    for (int target=pos; !b; target=(target+1)%BIO_HASHMODS) {
+        b = bget_try(dev, blockno, pos, target);
     }
+    return b;
 
-    // Not cached
-    // Search in this hashtable
-    for (b = bcache.hasht[pos].next; b != &bcache.hasht[pos]; b = b->next) {
-        if (b->refcnt==0) {
-            b->dev = dev;
-            b->blockno = blockno;
-            b->valid = 0;
-            b->refcnt = 1;
-            release(&bcache.lock[pos]);
-            acquiresleep(&b->lock);
-            return b;
-        }
-    }
-
-    // Search in other hashtable
-    for (int i=(pos+1)%BIO_HASHMODS; i!=pos; i=(i+1)%BIO_HASHMODS) {
-        // Here it can't be a deadlock, otherwise there's no free buffers.
-        acquire(&bcache.lock[i]);
-        for (b = bcache.hasht[i].next; b != &bcache.hasht[i]; b = b->next) {
-            if (b->refcnt==0) {
-            b->dev = dev;
-            b->blockno = blockno;
-            b->valid = 0;
-            b->refcnt = 1;
-
-            // Remove from bucket i
-            b->next->prev = b->prev;
-            b->prev->next = b->next;
-
-            // Insert into bucket pos
-            b->prev = &bcache.hasht[pos];
-            b->next = bcache.hasht[pos].next;
-            b->prev->next = b->next->prev = b;
-
-            release(&bcache.lock[i]);
-            release(&bcache.lock[pos]);
-            acquiresleep(&b->lock);
-            return b;
-            }
-        }
-        release(&bcache.lock[i]);
-    }
-
-    // acquire(&bcache.unused_lock);
-    // b = bcache.unused.next;
-    // if (b != &bcache.unused) {
-    //     b->dev = dev;
-    //     b->blockno = blockno;
-    //     b->valid = 0;
-    //     b->refcnt = 1;
-
-    //     // Remove from unused list.
-    //     b->prev->next = b->next;
-    //     b->next->prev = b->prev;
-    //     release(&bcache.unused_lock);
-
-    //     // Insert into hasht
-    //     b->prev = &bcache.hasht[pos];
-    //     b->next = bcache.hasht[pos].next;
-    //     b->prev->next = b->next->prev = b;
-
-    //     release(&bcache.lock[pos]);
-    //     acquiresleep(&b->lock);
-    //     return b;
-    // }
-
-
-    //   acquire(&bcache.lock);
-
-    //   // Is the block already cached?
-    //   for(b = bcache.head.next; b != &bcache.head; b = b->next){
-    //     if(b->dev == dev && b->blockno == blockno){
-    //       b->refcnt++;
-    //       release(&bcache.lock);
-    //       acquiresleep(&b->lock);
-    //       return b;
-    //     }
-    //   }
-
-    //   // Not cached.
-    //   // Recycle the least recently used (LRU) unused buffer.
-    //   for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
-    //     if(b->refcnt == 0) {
-    //       b->dev = dev;
-    //       b->blockno = blockno;
-    //       b->valid = 0;
-    //       b->refcnt = 1;
-    //       release(&bcache.lock);
-    //       acquiresleep(&b->lock);
-    //       return b;
-    //     }
-    //   }
     panic("bget: no buffers");
 }
 

@@ -1,70 +1,18 @@
-SIZE=107
+对于kalloc的并发，直接对每个cpu维护空闲页列表即可。若当前cpu没有空闲页，就从其他cpu的空闲页列表中取出一页分配。
+
+只有在从其他cpu处分配时可能有锁的竞争。由于一次最多只持有一个锁，死锁也不可能发生。
+
+对于bcache的并发则更加困难。
+
+我一开始采取的实现是使用哈希表使得(dev,blockno)能直接查询到对应cache。
+所有的空闲cache块则额外使用一条链表unused和额外的锁维护。
+在哈希表的大小为107的情况下,bcachetest信息如下：
+
 lock: kmem: #test-and-set 0 #acquire() 32964
 lock: kmem: #test-and-set 0 #acquire() 65
 lock: kmem: #test-and-set 0 #acquire() 47
 lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 8
-lock: bcache: #test-and-set 0 #acquire() 8
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 4
-lock: bcache: #test-and-set 0 #acquire() 4
-lock: bcache: #test-and-set 0 #acquire() 4
-lock: bcache: #test-and-set 0 #acquire() 4
-lock: bcache: #test-and-set 0 #acquire() 4
-lock: bcache: #test-and-set 0 #acquire() 4
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 6
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 10
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 4
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 2
-lock: bcache: #test-and-set 0 #acquire() 148
-lock: bcache: #test-and-set 0 #acquire() 144
-lock: bcache: #test-and-set 0 #acquire() 144
-lock: bcache: #test-and-set 0 #acquire() 136
-lock: bcache: #test-and-set 0 #acquire() 4
-lock: bcache: #test-and-set 0 #acquire() 50
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2154
-lock: bcache: #test-and-set 0 #acquire() 2298
-lock: bcache: #test-and-set 0 #acquire() 2288
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 50
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2376
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2942
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 50
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
-lock: bcache: #test-and-set 0 #acquire() 2058
+......
 lock: bcache: #test-and-set 0 #acquire() 2058
 lock: bcache_u: #test-and-set 2827 #acquire() 63536
 --- top 5 contended locks:
@@ -75,3 +23,16 @@ lock: proc: #test-and-set 234078 #acquire() 558946
 lock: proc: #test-and-set 181752 #acquire() 558947
 tot= 2827
 
+其中bcache_u是unused的锁，可以看出其竞争情况非常多。
+
+于是我缩小哈希表的大小，并在初始化时平均放入空闲的cache块。
+对于bget中查询失败的情况，优先在当前bucket中寻找空闲块，否则从其他bucket中获取空闲块。
+
+这里的问题在于从其他bucket中获取空闲块需要同时持有两个锁，可能引起死锁。
+于是我约定需要获取两个锁时，先获取bucket对应Id较小的。
+遍历所有bucket，记作target，并尝试获取target和当前bucket的锁，
+获得锁之后尝试在当前bucket中寻找对应块，或在target中寻找空闲块。
+若既没有对应块也没有空闲块则该次尝试失败。
+在尝试成功之前一直保持target的遍历并尝试。
+
+可以发现上述实现不会产生死锁。
