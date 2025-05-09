@@ -105,6 +105,11 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
+  #ifdef LAB_PGTBL
+  // Usyscall
+  struct usyscall *usyscall;   // syscall page
+  #endif
+
   // trace mask
   uint32 trace_mask;
 
