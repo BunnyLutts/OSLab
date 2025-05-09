@@ -1,0 +1,20 @@
+# Lab Page Tables Report
+
+## speed up system calls
+
+通过添加一页提前存储部分数据加速系统调用。
+
+我认为主要难点体现在对页表项中X,U,R,W等标志位的理解。
+
+我一开始总是报错，原因是只设置了R位没有设置U位。
+
+## print a page table
+
+基本上按照freewalk的结构编写即可。
+
+## detect which pages have been accessed
+
+在虚拟地址上遍历页，检查A位并置零。
+
+涉及内存按位操作多字节数据时一定要牢记当前类型的比特数，
+我就因为忘记uint64占用8个字节而报错了。
