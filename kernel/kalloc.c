@@ -23,6 +23,8 @@ struct {
   struct run *freelist;
 } kmem[NCPU];
 
+uint mem_refcnt[PHYSTOP / PGSIZE];
+
 void
 kinit()
 {
@@ -30,6 +32,11 @@ kinit()
     initlock(&kmem[i].lock, "kmem");
   }
   freerange(end, (void*)PHYSTOP);
+
+  // Init the refcnt
+  for (int i=0; i<PHYSTOP / PGSIZE; i++) {
+    mem_refcnt[i] = 0;
+  }
 }
 
 void
@@ -41,6 +48,14 @@ freerange(void *pa_start, void *pa_end)
     kfree(p);
 }
 
+uint inc_refcnt(uint64 pa) {
+  return ++mem_refcnt[(uint64)pa/PGSIZE];
+}
+
+uint dec_refcnt(uint64 pa) {
+  return --mem_refcnt[(uint64)pa/PGSIZE];
+}
+
 // Free the page of physical memory pointed at by pa,
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
@@ -49,6 +64,10 @@ void
 kfree(void *pa)
 {
   struct run *r;
+
+  if (dec_refcnt((uint64)pa) > 0) {
+    return; // Still in use
+  }
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
@@ -95,8 +114,10 @@ kalloc(void) {
     }
     pop_off();
 
-    if (r)
+    if (r) {
         memset((char *)r, 5, PGSIZE);  // fill with junk
+        mem_refcnt[(uint64)r/PGSIZE] = 1; // set the refcnt
+    }
     return (void *)r;
 }
 
