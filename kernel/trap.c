@@ -71,7 +71,35 @@ usertrap(void)
     if (killed(p))
       exit(-1);
 
-    // uint64 addr = r_stval();
+    uint64 va = PGROUNDDOWN(r_stval());
+
+    intr_on();
+
+    pte_t *pte = walk(p->pagetable, va, 1); // Create the target page
+    if (pte == 0 || (*pte & PTE_V) == 0) {
+      setkilled(p);
+    } else {
+      uint flags = PTE_FLAGS(*pte);
+      if (!(flags & PTE_W)) {
+        if (flags & PTE_RSW_COW) {
+          // Alloc new page
+          uint64 page = (uint64)kalloc();
+          if (page) {
+            memmove((void *)page, (void *)PTE2PA(*pte), PGSIZE);
+            // Remove old pages
+            uvmunmap(p->pagetable, va, 1, 1);
+            flags &= ~PTE_RSW_COW;
+            flags |= PTE_W;
+            mappages(p->pagetable, va, PGSIZE, page, flags);
+          } else {
+            setkilled(p);
+          }
+        } else {
+          // Illegal store
+          setkilled(p);
+        }
+      }
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
