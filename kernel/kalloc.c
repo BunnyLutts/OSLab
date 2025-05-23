@@ -31,12 +31,15 @@ kinit()
   for (int i=0; i<NCPU; i++) {
     initlock(&kmem[i].lock, "kmem");
   }
-  freerange(end, (void*)PHYSTOP);
-
-  // Init the refcnt
-  for (int i=0; i<PHYSTOP / PGSIZE; i++) {
+  // Init the refcnt to 1 as it is used in freerange
+  for (int i=0; i< (uint64)end / PGSIZE; i++) {
     mem_refcnt[i] = 0;
   }
+  for (int i = PGROUNDUP((uint64)end) / PGSIZE; i < PHYSTOP / PGSIZE; i++) {
+    mem_refcnt[i] = 1;
+  }
+  freerange(end, (void*)PHYSTOP);
+
 }
 
 void
@@ -65,12 +68,12 @@ kfree(void *pa)
 {
   struct run *r;
 
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    panic("kfree");
+
   if (dec_refcnt((uint64)pa) > 0) {
     return; // Still in use
   }
-
-  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
-    panic("kfree");
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
