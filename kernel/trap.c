@@ -75,6 +75,10 @@ usertrap(void)
 
     intr_on();
 
+    if (va >= MAXVA) {
+      setkilled(p);
+      exit(-1);
+    }
     pte_t *pte = walk(p->pagetable, va, 1); // Create the target page
     if (pte == 0 || (*pte & PTE_V) == 0) {
       setkilled(p);
