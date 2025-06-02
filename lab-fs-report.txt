@@ -1,0 +1,8 @@
+任务一仅需将inode中一个direct block替换成doubly indirect block，
+在bmap查询doubly indirect block需要做两次查询。
+
+任务二可以通过创建一个T_SYMLINK的文件来实现symbolic link,
+该文件只存储到target的路径。
+在open中若发现是symbolic link文件，就反复跳转到对应文件，
+直到文件不是symbolic link文件或超出深度为止。
+需要注意create本身已经获取锁，重复获取锁将导致死锁。
