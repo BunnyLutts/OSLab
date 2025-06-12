@@ -31,6 +31,8 @@ int trace(int);
 int sysinfo(struct sysinfo*);
 int sigalarm(int ticks, void (*handler)());
 int sigreturn(void);
+void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
+int munmap(void *addr, size_t len);
 #ifdef LAB_NET
 int connect(uint32, uint16, uint16);
 #endif

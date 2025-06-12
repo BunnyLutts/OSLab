@@ -136,6 +136,12 @@ found:
     p->usyscall->pid = p->pid;
 #endif
 
+    // Init vmat
+    for (int i=0; i<MMAP_MAXVMA; i++) {
+        p->vmat[i].valid = 0;
+    }
+    p->vma_base = TRAPFRAME;
+
     // An empty user page table.
     p->pagetable = proc_pagetable(p);
     if (p->pagetable == 0) {

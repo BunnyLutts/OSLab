@@ -81,6 +81,17 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+#define MMAP_MAXVMA 16
+
+struct vma {
+  uint64 va;
+  uint64 length;
+  int prot;
+  int flags;
+  struct file *file;
+  int valid;
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -109,6 +120,9 @@ struct proc {
   // Usyscall
   struct usyscall *usyscall;   // syscall page
   #endif
+
+  struct vma vmat[MMAP_MAXVMA];
+  uint64 vma_base;
 
   // trace mask
   uint32 trace_mask;

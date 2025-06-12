@@ -3,8 +3,12 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "sleeplock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
+#include "fs.h"
+#include "file.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -27,6 +31,41 @@ void
 trapinithart(void)
 {
   w_stvec((uint64)kernelvec);
+}
+
+// Fetch page for a page load fault
+void tryfetchpage(struct proc *p, uint64 va) {
+  // Check whether the page is a mmap page
+  uint64 va_ = PGROUNDDOWN(va);
+  struct vma *vt = p->vmat;
+  for (; vt < p->vmat + MMAP_MAXVMA; vt++) {
+    if (vt->valid && vt->va <= va_ && va_ < vt->va + PGROUNDUP(vt->length)) {
+      break;
+    }
+  }
+
+  if (vt <= p->vmat + MMAP_MAXVMA) {
+    // Page is a mmap page
+    uint64 pa = (uint64)kalloc();
+    memset((void*)pa, 0, PGSIZE);
+    ilock(vt->file->ip);
+    readi(vt->file->ip, 0, pa, va_ - vt->va, PGSIZE);
+    iunlock(vt->file->ip);
+
+    int perm = PTE_U;
+    if (vt->prot & PROT_READ) {
+      perm |= PTE_R;
+    }
+    if (vt->prot & PROT_WRITE) {
+      perm |= PTE_W;
+    }
+    mappages(p->pagetable, va_, PGSIZE, pa, perm);
+
+    return;
+  }
+
+  // Failed
+  setkilled(p);
 }
 
 //
@@ -65,6 +104,13 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if (r_scause() == 13) {
+    // Load page fault
+    uint64 va = r_stval();
+
+    intr_on();
+
+    tryfetchpage(p, va);
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {

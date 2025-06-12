@@ -42,3 +42,5 @@ entry("trace");
 entry("sysinfo");
 entry("sigalarm");
 entry("sigreturn");
+entry("mmap");
+entry("munmap");

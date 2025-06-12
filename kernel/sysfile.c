@@ -503,3 +503,28 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64 sys_mmap(void) {
+  struct proc *p = myproc();
+  int id = 0;
+  for (; id<MMAP_MAXVMA && p->vmat[id].valid; id++);
+  if (id >= MMAP_MAXVMA) return -1; // No more space
+  struct vma *vt = &p->vmat[id];
+  vt->valid = 1;
+  argaddr(1, &vt->length);
+  argint(2, &vt->prot);
+  argint(3, &vt->flags);
+  int fd;
+  argint(4, &fd);
+  vt->file = p->ofile[fd];
+  filedup(vt->file);
+
+  p->vma_base -= PGROUNDUP(vt->length);
+  vt->va = p->vma_base;
+
+  return vt->va;
+}
+
+uint64 sys_munmap(void) {
+  return -1;
+}
