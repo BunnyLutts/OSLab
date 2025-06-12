@@ -532,7 +532,7 @@ uint64 sys_mmap(void) {
 
   vt->valid = 1;
   vma_base -= PGROUNDUP(vt->length);
-  vt->va = vma_base;
+  vt->start = vt->va = vma_base;
   // printf("DEBUG: make vma at %p, length = %p, pid = %d, file = %p, ref=%d, writable=%d\n", vt->va, vt->length, p->pid, vt->file, vt->file->ref, vt->file->writable);
 
   return vt->va;

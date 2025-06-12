@@ -47,6 +47,9 @@ void binit(void) {
     // for (l = bcache.lock; l < bcache.lock + BIO_HASHMODS; l++) {
     //     initlock(l, "bcache");
     // }
+    for (int i=0; i<NBUF; i++) {
+      bcache.buf[i].data = kalloc();
+    }
     for (int i=0; i<BIO_HASHMODS; i++) {
         initlock(&bcache.lock[i], "bcache");
     }
@@ -158,7 +161,7 @@ static struct buf *bget_try(uint dev, uint blockno, int pos, int target) {
 // Look through buffer cache for block on device dev.
 // If not found, allocate a buffer.
 // In either case, return locked buffer.
-static struct buf *
+struct buf *
 bget(uint dev, uint blockno) {
     struct buf *b;
 

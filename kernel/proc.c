@@ -730,12 +730,15 @@ struct vma * findvma(struct proc *p, uint64 va) {
 }
 
 // uvmunmap ignoring unmapped page.
-void uvmunmap_ignore(pagetable_t pgt, uint64 va, uint64 blocks, int clean) {
+void uvmunmap_ignore(pagetable_t pgt, uint64 va, uint64 blocks, int clean, struct vma *vt) {
   for (; blocks > 0; va += PGSIZE, blocks--) {
     pte_t *pte = walk(pgt, va, 0);
     if (pte == 0 || !(*pte & PTE_V)) {
       continue;
     }
+    begin_op();
+    unpini(vt->file->ip, va-vt->start);
+    end_op();
     uvmunmap(pgt, va, 1, clean);
   }
 }
@@ -764,14 +767,14 @@ int unmapvma(struct proc *p, struct vma *vt, uint64 va, uint64 length) {
     // Head remove
     uint64 va_ = PGROUNDDOWN(va);
     uint64 blocks = (length + va - va_)/PGSIZE;
-    uvmunmap_ignore(p->pagetable, va_, blocks, 1);
+    uvmunmap_ignore(p->pagetable, va_, blocks, 1, vt);
     vt->va += length;
     vt->length -= length;
   } else {
     // Tail remove
     uint64 end_ = PGROUNDUP(va + length);
     uint64 blocks = (end_ - va)/PGSIZE;
-    uvmunmap_ignore(p->pagetable, end_ - blocks * PGSIZE, blocks, 1);
+    uvmunmap_ignore(p->pagetable, end_ - blocks * PGSIZE, blocks, 1, vt);
     vt->length -= length;
   }
 

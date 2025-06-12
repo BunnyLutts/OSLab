@@ -19,6 +19,7 @@ struct sock;
 
 // bio.c
 void            binit(void);
+struct buf*     bget(uint dev, uint blockno);
 struct buf*     bread(uint, uint);
 void            brelse(struct buf*);
 void            bwrite(struct buf*);
@@ -58,6 +59,8 @@ int             namecmp(const char*, const char*);
 struct inode*   namei(char*);
 struct inode*   nameiparent(char*, char*);
 int             readi(struct inode*, int, uint64, uint, uint);
+struct buf*     readi_raw(struct inode *ip, uint off);
+void            unpini(struct inode *ip, uint off);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, int, uint64, uint, uint);
 void            itrunc(struct inode*);

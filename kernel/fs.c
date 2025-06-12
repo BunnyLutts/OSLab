@@ -494,6 +494,35 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   return tot;
 }
 
+// readi that returns raw buf
+struct buf * readi_raw(struct inode *ip, uint off) {
+  struct buf *bp;
+
+  if(off > ip->size || off + BSIZE < off)
+    return 0;
+
+  uint addr = bmap(ip, off/BSIZE);
+  bp = bread(ip->dev, addr);
+  printf("%d %d\n", off/BSIZE, bp->data[0]);
+  if (!bp) return 0;
+  bpin(bp);
+  brelse(bp);
+  return bp;
+}
+
+// get the buffer corresponding
+void unpini(struct inode *ip, uint off) {
+  struct buf *bp;
+
+  if(off > ip->size || off + BSIZE < off)
+    return;
+
+  uint addr = bmap(ip, off/BSIZE);
+  bp = bget(ip->dev, addr);
+  bunpin(bp);
+  brelse(bp);
+}
+
 // Write data to inode.
 // Caller must hold ip->lock.
 // If user_src==1, then src is a user virtual address;
