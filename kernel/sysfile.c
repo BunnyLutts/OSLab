@@ -15,6 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "memlayout.h"
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -509,22 +510,40 @@ uint64 sys_mmap(void) {
   int id = 0;
   for (; id<MMAP_MAXVMA && p->vmat[id].valid; id++);
   if (id >= MMAP_MAXVMA) return -1; // No more space
+
+  uint64 vma_base = TRAPFRAME;
+  for (struct vma *i = p->vmat; i < p->vmat + MMAP_MAXVMA; i++) {
+    if (i->valid && vma_base > PGROUNDDOWN(i->va)) {
+      vma_base = PGROUNDDOWN(i->va);
+      // printf("DEBUG: Update vma_base to %p\n", vma_base);
+    }
+  }
+
   struct vma *vt = &p->vmat[id];
-  vt->valid = 1;
   argaddr(1, &vt->length);
   argint(2, &vt->prot);
   argint(3, &vt->flags);
   int fd;
   argint(4, &fd);
   vt->file = p->ofile[fd];
+  if ((vt->prot & PROT_READ) && !vt->file->readable) return -1;
+  if ((vt->prot & PROT_WRITE) && !vt->file->writable && vt->flags == MAP_SHARED) return -1;
   filedup(vt->file);
 
-  p->vma_base -= PGROUNDUP(vt->length);
-  vt->va = p->vma_base;
+  vt->valid = 1;
+  vma_base -= PGROUNDUP(vt->length);
+  vt->va = vma_base;
+  // printf("DEBUG: make vma at %p, length = %p\n", vt->va, vt->length);
 
   return vt->va;
 }
 
 uint64 sys_munmap(void) {
-  return -1;
+  struct proc *p = myproc();
+  uint64 addr, length;
+  argaddr(0, &addr);
+  argaddr(1, &length);
+  struct vma *vt = findvma(p, addr);
+  if (vt==0) return -1;
+  return unmapvma(p, vt, addr, length);
 }

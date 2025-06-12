@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -140,7 +141,6 @@ found:
     for (int i=0; i<MMAP_MAXVMA; i++) {
         p->vmat[i].valid = 0;
     }
-    p->vma_base = TRAPFRAME;
 
     // An empty user page table.
     p->pagetable = proc_pagetable(p);
@@ -376,6 +376,13 @@ void exit(int status) {
 
     if (p == initproc)
         panic("init exiting");
+
+    // Close all VMAs
+    for (struct vma *vt = p->vmat; vt < p->vmat + MMAP_MAXVMA; vt++) {
+        if (vt->valid) {
+            unmapvma(p, vt, vt->va, vt->length);
+        }
+    }
 
     // Close all open files.
     for (int fd = 0; fd < NOFILE; fd++) {
@@ -694,4 +701,68 @@ uint64 count_processes(void) {
         count += (p->state != UNUSED);
     }
     return count;
+}
+
+// Find the vma, if not found, return 0
+struct vma * findvma(struct proc *p, uint64 va) {
+  struct vma *vt = p->vmat;
+  for (; vt < p->vmat + MMAP_MAXVMA; vt++) {
+    // printf("DEBUG: Search at va=%p, length=%p, end=%p, valid = %d\n", vt->va, vt->length, vt->va + vt->length, vt->valid);
+    // printf("DEBUG: Judging %d, %d\n", vt->va <=va, va < vt->va + vt->length);
+    if (vt->valid && vt->va <= va && va < vt->va + vt->length) {
+      return vt;
+    }
+  }
+  // printf("DEBUG: Here!pid = %d, va = %p\n", p->pid, va);
+  return 0;
+}
+
+// uvmunmap ignoring unmapped page.
+void uvmunmap_ignore(pagetable_t pgt, uint64 va, uint64 blocks, int clean) {
+  for (; blocks > 0; va += PGSIZE, blocks--) {
+    pte_t *pte = walk(pgt, va, 0);
+    if (pte == 0 || !(*pte & PTE_V)) {
+      continue;
+    }
+    uvmunmap(pgt, va, 1, clean);
+  }
+}
+
+// Unmap a vma page.
+int unmapvma(struct proc *p, struct vma *vt, uint64 va, uint64 length) {
+  if (vt->flags == MAP_SHARED) {
+    // Write back
+    for (uint64 i = PGROUNDDOWN(va); i < PGROUNDUP(va + length); i+=PGSIZE) {
+      pte_t * pte = walk(p->pagetable, i, 0);
+      if (pte != 0 && (*pte & PTE_D)) {
+        uint64 start = i >= va ? i : va;
+        uint64 end = i + PGSIZE <= va + length ? i + PGSIZE : va + length;
+        if (filewrite(vt->file, start, end - start) < 0) {
+          return -1;
+        }
+      }
+    }
+  }
+
+  if (vt->va == va) {
+    // Head remove
+    uint64 va_ = PGROUNDDOWN(va);
+    uint64 blocks = (length + va - va_)/PGSIZE;
+    uvmunmap_ignore(p->pagetable, va_, blocks, 1);
+    vt->va += length;
+    vt->length -= length;
+  } else {
+    // Tail remove
+    uint64 end_ = PGROUNDUP(va + length);
+    uint64 blocks = (end_ - va)/PGSIZE;
+    uvmunmap_ignore(p->pagetable, end_ - blocks * PGSIZE, blocks, 1);
+    vt->length -= length;
+  }
+
+  if (vt->length <= 0) {
+    fileclose(vt->file);
+    vt->valid = 0;
+  }
+
+  return 0;
 }

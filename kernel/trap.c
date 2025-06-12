@@ -37,14 +37,9 @@ trapinithart(void)
 void tryfetchpage(struct proc *p, uint64 va) {
   // Check whether the page is a mmap page
   uint64 va_ = PGROUNDDOWN(va);
-  struct vma *vt = p->vmat;
-  for (; vt < p->vmat + MMAP_MAXVMA; vt++) {
-    if (vt->valid && vt->va <= va_ && va_ < vt->va + PGROUNDUP(vt->length)) {
-      break;
-    }
-  }
+  struct vma *vt = findvma(p, va);
 
-  if (vt <= p->vmat + MMAP_MAXVMA) {
+  if (vt) {
     // Page is a mmap page
     uint64 pa = (uint64)kalloc();
     memset((void*)pa, 0, PGSIZE);
@@ -65,6 +60,7 @@ void tryfetchpage(struct proc *p, uint64 va) {
   }
 
   // Failed
+  printf("Error!\n");
   setkilled(p);
 }
 

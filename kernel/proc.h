@@ -122,7 +122,6 @@ struct proc {
   #endif
 
   struct vma vmat[MMAP_MAXVMA];
-  uint64 vma_base;
 
   // trace mask
   uint32 trace_mask;
