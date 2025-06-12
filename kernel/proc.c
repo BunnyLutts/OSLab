@@ -6,6 +6,9 @@
 #include "proc.h"
 #include "defs.h"
 #include "fcntl.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 
 struct cpu cpus[NCPU];
 
@@ -337,6 +340,15 @@ int fork(void) {
         if (p->ofile[i])
             np->ofile[i] = filedup(p->ofile[i]);
     np->cwd = idup(p->cwd);
+
+    // copy vma with file refcount increment
+    for (i = 0; i < MMAP_MAXVMA; i++) {
+      np->vmat[i] = p->vmat[i];
+      if (p->vmat[i].valid) {
+        filedup(p->vmat[i].file);
+        // printf("DEBUG: Copy vma %p with now refcnt=%d\n", p->vmat[i].va, p->vmat[i].file->ref);
+      }
+    }
 
     safestrcpy(np->name, p->name, sizeof(p->name));
 
@@ -730,14 +742,18 @@ void uvmunmap_ignore(pagetable_t pgt, uint64 va, uint64 blocks, int clean) {
 
 // Unmap a vma page.
 int unmapvma(struct proc *p, struct vma *vt, uint64 va, uint64 length) {
+  // printf("DEBUG: pid = %d, addr = %p, length = %p, vt = %p\n", p->pid, va, length, vt);
+  // printf("DEBUG: file %p, Writable: %d\n", vt->file, vt->file->writable);
   if (vt->flags == MAP_SHARED) {
     // Write back
     for (uint64 i = PGROUNDDOWN(va); i < PGROUNDUP(va + length); i+=PGSIZE) {
       pte_t * pte = walk(p->pagetable, i, 0);
       if (pte != 0 && (*pte & PTE_D)) {
+        // printf("DEBUG: pte=%p, pte_flags = %p, dirty = %p, writable = %p\n", *pte, PTE_FLAGS(*pte), *pte & PTE_D, *pte & PTE_W);
         uint64 start = i >= va ? i : va;
         uint64 end = i + PGSIZE <= va + length ? i + PGSIZE : va + length;
         if (filewrite(vt->file, start, end - start) < 0) {
+          // printf("DEBUG: file write failed at %p -> %p\n.", start, end);
           return -1;
         }
       }

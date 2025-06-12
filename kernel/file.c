@@ -136,8 +136,10 @@ filewrite(struct file *f, uint64 addr, int n)
 {
   int r, ret = 0;
 
-  if(f->writable == 0)
+  if(f->writable == 0) {
+    // printf("DEBUG: filewrite not writable, pid = %d\n", myproc()->pid);
     return -1;
+  }
 
   if(f->type == FD_PIPE){
     ret = pipewrite(f->pipe, addr, n);
@@ -166,6 +168,8 @@ filewrite(struct file *f, uint64 addr, int n)
       iunlock(f->ip);
       end_op();
 
+      // printf("DEBUG: filewrite, r = %d, n1 = %d, pid = %d\n", r, n1, myproc()->pid);
+
       if(r != n1){
         // error from writei
         break;
@@ -173,6 +177,7 @@ filewrite(struct file *f, uint64 addr, int n)
       i += r;
     }
     ret = (i == n ? n : -1);
+    // printf("DEBUG: filewrite returning %d at i=%d, n = %d\n", ret, i, n);
   } else {
     panic("filewrite");
   }
