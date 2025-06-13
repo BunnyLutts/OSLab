@@ -73,6 +73,10 @@ makefile(const char *f)
     if (write(fd, buf, BSIZE) != BSIZE)
       err("write 0 makefile");
   }
+  if (n==1) { // Thx wyx!!!
+    if (write(fd, buf, BSIZE / 2) != BSIZE / 2)
+        err("write 0 makefile");
+  }
   if (close(fd) == -1)
     err("close");
 }
@@ -110,7 +114,7 @@ mmap_test(void)
   // due to PROT_READ). the fifth argument is the file descriptor
   // of the file to be mapped. the last argument is the starting
   // offset in the file.
-  //
+
   char *p = mmap(0, PGSIZE*2, PROT_READ, MAP_PRIVATE, fd, 0);
   if (p == MAP_FAILED)
     err("mmap (1)");

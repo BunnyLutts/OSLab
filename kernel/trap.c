@@ -42,29 +42,31 @@ void tryfetchpage(struct proc *p, uint64 va) {
 
   if (vt) {
     // Page is a mmap page
-    // uint64 pa = 0;
+    uint64 pa = 0;
     // printf("DEBUG: fetch %p\n", va_ - vt->start);
-    // begin_op();
-    // ilock(vt->file->ip);
-    // struct buf *bp = readi_raw(vt->file->ip, va_ - vt->start);
-    // if (bp == 0) {
-    //   iunlock(vt->file->ip);
-    //   setkilled(p);
-    //   return;
-    // }
-    // pa = (uint64)bp->data;
-    //
-    // // pa = (uint64)kalloc();
-    // // readi(vt->file->ip, 0, pa, va_ - vt->start, PGSIZE);
-    // iunlock(vt->file->ip);
-    // end_op();
-    // // printf("%d\n", bp->data[0]);
+    begin_op();
+    if (vt->flags == MAP_SHARED) {
+      ilock(vt->file->ip);
+      struct buf *bp = readi_raw(vt->file->ip, va_ - vt->start);
+      if (bp == 0) {
+        iunlock(vt->file->ip);
+        setkilled(p);
+        return;
+      }
+      pa = (uint64)bp->data;
 
-    uint64 pa = (uint64)kalloc();
-    memset((void*)pa, 0, PGSIZE);
-    ilock(vt->file->ip);
-    readi(vt->file->ip, 0, pa, va_ - vt->start, PGSIZE);
-    iunlock(vt->file->ip);
+      // pa = (uint64)kalloc();
+      // readi(vt->file->ip, 0, pa, va_ - vt->start, PGSIZE);
+      iunlock(vt->file->ip);
+    } else {
+      pa = (uint64)kalloc();
+      memset((void *)pa, 0, PGSIZE);
+      ilock(vt->file->ip);
+      readi(vt->file->ip, 0, pa, va_ - vt->start, PGSIZE);
+      iunlock(vt->file->ip);
+    }
+    end_op();
+    // printf("%d\n", bp->data[0]);
 
     int perm = PTE_U;
     if (vt->prot & PROT_READ) {

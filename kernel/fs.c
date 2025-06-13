@@ -503,7 +503,7 @@ struct buf * readi_raw(struct inode *ip, uint off) {
 
   uint addr = bmap(ip, off/BSIZE);
   bp = bread(ip->dev, addr);
-  printf("%d %d\n", off/BSIZE, bp->data[0]);
+  // printf("DEBUG: readi_raw (%d, %d): %d at bp=%p\n", addr, off/BSIZE, bp->data[0], bp);
   if (!bp) return 0;
   bpin(bp);
   brelse(bp);

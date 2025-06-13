@@ -736,10 +736,14 @@ void uvmunmap_ignore(pagetable_t pgt, uint64 va, uint64 blocks, int clean, struc
     if (pte == 0 || !(*pte & PTE_V)) {
       continue;
     }
-    begin_op();
-    unpini(vt->file->ip, va-vt->start);
-    end_op();
-    uvmunmap(pgt, va, 1, clean);
+    if (vt->flags == MAP_SHARED) {
+      begin_op();
+      unpini(vt->file->ip, va-vt->start);
+      end_op();
+      uvmunmap(pgt, va, 1, 0);
+    } else {
+      uvmunmap(pgt, va, 1, clean);
+    }
   }
 }
 

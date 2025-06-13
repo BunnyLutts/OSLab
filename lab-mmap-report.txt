@@ -1,0 +1,14 @@
+Lab Mmap Report
+
+考虑如何选择vma的虚拟地址：
+观察xv6进程的内存分布图，发现低于TRAPFRAME的空间属于Heap,可以考虑从这里分配。
+以TRAPFRAME为分界，选择分配在TRAPFRAME或者最低的分配vma地址下方。
+
+懒加载可以在usertrap中遇到Load page fault时再检查是否是vma，若是则从磁盘上加载。
+
+关于改进，直接使用内核中buf的data段作为vma实际的frame。
+这里要求buf.data使用kalloc分配，使其可以对齐。
+这个改进只能用于MAP_SHARED，因为MAP_PRIVATE的vma修改仅对自己可见。
+对这一buf进行Pin，并在该Page被释放时unpin.
+
+需要注意这是磁盘操作，因此需要使用begin_op和end_op包裹。
